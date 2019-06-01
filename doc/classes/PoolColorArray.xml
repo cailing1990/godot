@@ -8,8 +8,6 @@
 	</description>
 	<tutorials>
 	</tutorials>
-	<demos>
-	</demos>
 	<methods>
 		<method name="PoolColorArray">
 			<return type="PoolColorArray">
@@ -84,7 +82,7 @@
 			<return type="int">
 			</return>
 			<description>
-				Return the size of the array.
+				Returns the size of the array.
 			</description>
 		</method>
 	</methods>

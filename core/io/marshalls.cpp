@@ -768,7 +768,9 @@ Error decode_variant(Variant &r_variant, const uint8_t *p_buffer, int p_len, int
 			r_variant = carray;
 
 		} break;
-		default: { ERR_FAIL_V(ERR_BUG); }
+		default: {
+			ERR_FAIL_V(ERR_BUG);
+		}
 	}
 
 	return OK;
@@ -823,7 +825,8 @@ Error encode_variant(const Variant &p_variant, uint8_t *r_buffer, int &r_len, bo
 				flags |= ENCODE_FLAG_OBJECT_AS_ID;
 			}
 		} break;
-		default: {} // nothing to do at this stage
+		default: {
+		} // nothing to do at this stage
 	}
 
 	if (buf) {
@@ -1228,11 +1231,15 @@ Error encode_variant(const Variant &p_variant, uint8_t *r_buffer, int &r_len, bo
 				buf += 4;
 				PoolVector<uint8_t>::Read r = data.read();
 				copymem(buf, &r[0], datalen * datasize);
+				buf += datalen * datasize;
 			}
 
 			r_len += 4 + datalen * datasize;
-			while (r_len % 4)
+			while (r_len % 4) {
 				r_len++;
+				if (buf)
+					*(buf++) = 0;
+			}
 
 		} break;
 		case Variant::POOL_INT_ARRAY: {
@@ -1385,7 +1392,9 @@ Error encode_variant(const Variant &p_variant, uint8_t *r_buffer, int &r_len, bo
 			r_len += 4 * 4 * len;
 
 		} break;
-		default: { ERR_FAIL_V(ERR_BUG); }
+		default: {
+			ERR_FAIL_V(ERR_BUG);
+		}
 	}
 
 	return OK;

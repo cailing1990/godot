@@ -891,7 +891,7 @@ void AnimationTree::_process_graph(float p_delta) {
 								t->loc = Vector3();
 								t->rot = Quat();
 								t->rot_blend_accum = 0;
-								t->scale = Vector3();
+								t->scale = Vector3(1, 1, 1);
 							}
 
 							float prev_time = time - delta;
@@ -952,10 +952,8 @@ void AnimationTree::_process_graph(float p_delta) {
 								t->loc = loc;
 								t->rot = rot;
 								t->rot_blend_accum = 0;
-								t->scale = Vector3();
+								t->scale = scale;
 							}
-
-							scale -= Vector3(1.0, 1.0, 1.0); //helps make it work properly with Add nodes
 
 							if (err != OK)
 								continue;
@@ -1241,8 +1239,6 @@ void AnimationTree::_process_graph(float p_delta) {
 					Transform xform;
 					xform.origin = t->loc;
 
-					t->scale += Vector3(1.0, 1.0, 1.0); //helps make it work properly with Add nodes and root motion
-
 					xform.basis.set_quat_scale(t->rot, t->scale);
 
 					if (t->root_motion) {
@@ -1276,7 +1272,8 @@ void AnimationTree::_process_graph(float p_delta) {
 					t->object->set_indexed(t->subpath, t->value);
 
 				} break;
-				default: {} //the rest don't matter
+				default: {
+				} //the rest don't matter
 			}
 		}
 	}
@@ -1301,9 +1298,17 @@ void AnimationTree::_notification(int p_what) {
 		_clear_caches();
 		if (last_animation_player) {
 
-			Object *old_player = ObjectDB::get_instance(last_animation_player);
-			if (old_player) {
-				old_player->disconnect("caches_cleared", this, "_clear_caches");
+			Object *player = ObjectDB::get_instance(last_animation_player);
+			if (player) {
+				player->disconnect("caches_cleared", this, "_clear_caches");
+			}
+		}
+	} else if (p_what == NOTIFICATION_ENTER_TREE) {
+		if (last_animation_player) {
+
+			Object *player = ObjectDB::get_instance(last_animation_player);
+			if (player) {
+				player->connect("caches_cleared", this, "_clear_caches");
 			}
 		}
 	}
@@ -1575,6 +1580,7 @@ AnimationTree::AnimationTree() {
 	active = false;
 	cache_valid = false;
 	setup_pass = 1;
+	process_pass = 1;
 	started = true;
 	properties_dirty = true;
 	last_animation_player = 0;

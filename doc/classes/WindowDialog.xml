@@ -8,14 +8,12 @@
 	</description>
 	<tutorials>
 	</tutorials>
-	<demos>
-	</demos>
 	<methods>
 		<method name="get_close_button">
 			<return type="TextureButton">
 			</return>
 			<description>
-				Return the close [TextureButton].
+				Returns the close [TextureButton].
 			</description>
 		</method>
 	</methods>

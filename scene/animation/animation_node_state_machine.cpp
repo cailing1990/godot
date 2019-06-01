@@ -314,8 +314,9 @@ float AnimationNodeStateMachinePlayback::process(AnimationNodeStateMachine *sm, 
 
 		if (start_request_travel) {
 			if (!playing) {
+				String node_name = start_request;
 				start_request = StringName();
-				ERR_EXPLAIN("Can't travel to '" + String(start_request) + "' if state machine is not active.");
+				ERR_EXPLAIN("Can't travel to '" + node_name + "' if state machine is not playing.");
 				ERR_FAIL_V(0);
 			}
 
@@ -960,7 +961,7 @@ void AnimationNodeStateMachine::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_end_node", "name"), &AnimationNodeStateMachine::set_end_node);
 	ClassDB::bind_method(D_METHOD("get_end_node"), &AnimationNodeStateMachine::get_end_node);
 
-	ClassDB::bind_method(D_METHOD("set_graph_offset", "name"), &AnimationNodeStateMachine::set_graph_offset);
+	ClassDB::bind_method(D_METHOD("set_graph_offset", "offset"), &AnimationNodeStateMachine::set_graph_offset);
 	ClassDB::bind_method(D_METHOD("get_graph_offset"), &AnimationNodeStateMachine::get_graph_offset);
 
 	ClassDB::bind_method(D_METHOD("_tree_changed"), &AnimationNodeStateMachine::_tree_changed);

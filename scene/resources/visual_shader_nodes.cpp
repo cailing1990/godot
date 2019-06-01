@@ -1192,7 +1192,7 @@ String VisualShaderNodeScalarFunc::get_output_port_name(int p_port) const {
 
 String VisualShaderNodeScalarFunc::generate_code(Shader::Mode p_mode, VisualShader::Type p_type, int p_id, const String *p_input_vars, const String *p_output_vars, bool p_for_preview) const {
 
-	static const char *scalar_func_id[FUNC_TRUNC + 1] = {
+	static const char *scalar_func_id[FUNC_ONEMINUS + 1] = {
 		"sin($)",
 		"cos($)",
 		"tan($)",
@@ -1223,7 +1223,8 @@ String VisualShaderNodeScalarFunc::generate_code(Shader::Mode p_mode, VisualShad
 		"radians($)",
 		"1.0/($)",
 		"roundEven($)",
-		"trunc($)"
+		"trunc($)",
+		"1.0-$"
 	};
 
 	return "\t" + p_output_vars[0] + " = " + String(scalar_func_id[func]).replace("$", p_input_vars[0]) + ";\n";
@@ -1251,7 +1252,7 @@ void VisualShaderNodeScalarFunc::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_function", "func"), &VisualShaderNodeScalarFunc::set_function);
 	ClassDB::bind_method(D_METHOD("get_function"), &VisualShaderNodeScalarFunc::get_function);
 
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "function", PROPERTY_HINT_ENUM, "Sin,Cos,Tan,ASin,ACos,ATan,SinH,CosH,TanH,Log,Exp,Sqrt,Abs,Sign,Floor,Round,Ceil,Frac,Saturate,Negate,ACosH,ASinH,ATanH,Degrees,Exp2,InverseSqrt,Log2,Radians,Reciprocal,RoundEven,Trunc"), "set_function", "get_function");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "function", PROPERTY_HINT_ENUM, "Sin,Cos,Tan,ASin,ACos,ATan,SinH,CosH,TanH,Log,Exp,Sqrt,Abs,Sign,Floor,Round,Ceil,Frac,Saturate,Negate,ACosH,ASinH,ATanH,Degrees,Exp2,InverseSqrt,Log2,Radians,Reciprocal,RoundEven,Trunc,OneMinus"), "set_function", "get_function");
 
 	BIND_ENUM_CONSTANT(FUNC_SIN);
 	BIND_ENUM_CONSTANT(FUNC_COS);
@@ -1284,6 +1285,7 @@ void VisualShaderNodeScalarFunc::_bind_methods() {
 	BIND_ENUM_CONSTANT(FUNC_RECIPROCAL);
 	BIND_ENUM_CONSTANT(FUNC_ROUNDEVEN);
 	BIND_ENUM_CONSTANT(FUNC_TRUNC);
+	BIND_ENUM_CONSTANT(FUNC_ONEMINUS);
 }
 
 VisualShaderNodeScalarFunc::VisualShaderNodeScalarFunc() {
@@ -1319,7 +1321,7 @@ String VisualShaderNodeVectorFunc::get_output_port_name(int p_port) const {
 
 String VisualShaderNodeVectorFunc::generate_code(Shader::Mode p_mode, VisualShader::Type p_type, int p_id, const String *p_input_vars, const String *p_output_vars, bool p_for_preview) const {
 
-	static const char *vec_func_id[FUNC_TRUNC + 1] = {
+	static const char *vec_func_id[FUNC_ONEMINUS + 1] = {
 		"normalize($)",
 		"max(min($,vec3(1.0)),vec3(0.0))",
 		"-($)",
@@ -1353,7 +1355,8 @@ String VisualShaderNodeVectorFunc::generate_code(Shader::Mode p_mode, VisualShad
 		"sqrt($)",
 		"tan($)",
 		"tanh($)",
-		"trunc($)"
+		"trunc($)",
+		"vec3(1.0, 1.0, 1.0)-$"
 	};
 
 	String code;
@@ -1405,7 +1408,7 @@ void VisualShaderNodeVectorFunc::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_function", "func"), &VisualShaderNodeVectorFunc::set_function);
 	ClassDB::bind_method(D_METHOD("get_function"), &VisualShaderNodeVectorFunc::get_function);
 
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "function", PROPERTY_HINT_ENUM, "Normalize,Saturate,Negate,Reciprocal,RGB2HSV,HSV2RGB,Abs,ACos,ACosH,ASin,ASinH,ATan,ATanH,Ceil,Cos,CosH,Degrees,Exp,Exp2,Floor,Frac,InverseSqrt,Log,Log2,Radians,Round,RoundEven,Sign,Sin,SinH,Sqrt,Tan,TanH,Trunc"), "set_function", "get_function");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "function", PROPERTY_HINT_ENUM, "Normalize,Saturate,Negate,Reciprocal,RGB2HSV,HSV2RGB,Abs,ACos,ACosH,ASin,ASinH,ATan,ATanH,Ceil,Cos,CosH,Degrees,Exp,Exp2,Floor,Frac,InverseSqrt,Log,Log2,Radians,Round,RoundEven,Sign,Sin,SinH,Sqrt,Tan,TanH,Trunc,OneMinus"), "set_function", "get_function");
 
 	BIND_ENUM_CONSTANT(FUNC_NORMALIZE);
 	BIND_ENUM_CONSTANT(FUNC_SATURATE);
@@ -1441,6 +1444,7 @@ void VisualShaderNodeVectorFunc::_bind_methods() {
 	BIND_ENUM_CONSTANT(FUNC_TAN);
 	BIND_ENUM_CONSTANT(FUNC_TANH);
 	BIND_ENUM_CONSTANT(FUNC_TRUNC);
+	BIND_ENUM_CONSTANT(FUNC_ONEMINUS);
 }
 
 VisualShaderNodeVectorFunc::VisualShaderNodeVectorFunc() {
@@ -2350,7 +2354,7 @@ VisualShaderNodeVectorRefract::VisualShaderNodeVectorRefract() {
 ////////////// Scalar Interp
 
 String VisualShaderNodeScalarInterp::get_caption() const {
-	return "ScalarInterp";
+	return "Mix";
 }
 
 int VisualShaderNodeScalarInterp::get_input_port_count() const {
@@ -2392,7 +2396,7 @@ VisualShaderNodeScalarInterp::VisualShaderNodeScalarInterp() {
 ////////////// Vector Interp
 
 String VisualShaderNodeVectorInterp::get_caption() const {
-	return "VectorInterp";
+	return "Mix";
 }
 
 int VisualShaderNodeVectorInterp::get_input_port_count() const {
@@ -2947,4 +2951,204 @@ String VisualShaderNodeCubeMapUniform::generate_code(Shader::Mode p_mode, Visual
 }
 
 VisualShaderNodeCubeMapUniform::VisualShaderNodeCubeMapUniform() {
+}
+
+////////////// If
+
+String VisualShaderNodeIf::get_caption() const {
+	return "If";
+}
+
+int VisualShaderNodeIf::get_input_port_count() const {
+	return 6;
+}
+
+VisualShaderNodeIf::PortType VisualShaderNodeIf::get_input_port_type(int p_port) const {
+	if (p_port == 0 || p_port == 1 || p_port == 2) {
+		return PORT_TYPE_SCALAR;
+	}
+	return PORT_TYPE_VECTOR;
+}
+
+String VisualShaderNodeIf::get_input_port_name(int p_port) const {
+	switch (p_port) {
+		case 0:
+			return "a";
+		case 1:
+			return "b";
+		case 2:
+			return "tolerance";
+		case 3:
+			return "a == b";
+		case 4:
+			return "a > b";
+		case 5:
+			return "a < b";
+		default:
+			return "";
+	}
+}
+
+int VisualShaderNodeIf::get_output_port_count() const {
+	return 1;
+}
+
+VisualShaderNodeIf::PortType VisualShaderNodeIf::get_output_port_type(int p_port) const {
+	return PORT_TYPE_VECTOR;
+}
+
+String VisualShaderNodeIf::get_output_port_name(int p_port) const {
+	return "result";
+}
+
+String VisualShaderNodeIf::generate_code(Shader::Mode p_mode, VisualShader::Type p_type, int p_id, const String *p_input_vars, const String *p_output_vars, bool p_for_preview) const {
+
+	String code;
+	code += "\tif(abs(" + p_input_vars[0] + "-" + p_input_vars[1] + ")<" + p_input_vars[2] + ")\n"; // abs(a - b) < tolerance eg. a == b
+	code += "\t{\n";
+	code += "\t\t" + p_output_vars[0] + "=" + p_input_vars[3] + ";\n";
+	code += "\t}\n";
+	code += "\telse if(" + p_input_vars[0] + "<" + p_input_vars[1] + ")\n"; // a < b
+	code += "\t{\n";
+	code += "\t\t" + p_output_vars[0] + "=" + p_input_vars[5] + ";\n";
+	code += "\t}\n";
+	code += "\telse\n"; // a > b (or a >= b if abs(a - b) < tolerance is false)
+	code += "\t{\n";
+	code += "\t\t" + p_output_vars[0] + "=" + p_input_vars[4] + ";\n";
+	code += "\t}\n";
+	return code;
+}
+
+VisualShaderNodeIf::VisualShaderNodeIf() {
+	set_input_port_default_value(0, 0.0);
+	set_input_port_default_value(1, 0.0);
+	set_input_port_default_value(2, CMP_EPSILON);
+	set_input_port_default_value(3, Vector3(0.0, 0.0, 0.0));
+	set_input_port_default_value(4, Vector3(0.0, 0.0, 0.0));
+	set_input_port_default_value(5, Vector3(0.0, 0.0, 0.0));
+}
+
+////////////// Switch
+
+String VisualShaderNodeSwitch::get_caption() const {
+	return "Switch";
+}
+
+int VisualShaderNodeSwitch::get_input_port_count() const {
+	return 3;
+}
+
+VisualShaderNodeSwitch::PortType VisualShaderNodeSwitch::get_input_port_type(int p_port) const {
+	if (p_port == 0) {
+		return PORT_TYPE_BOOLEAN;
+	}
+	return PORT_TYPE_VECTOR;
+}
+
+String VisualShaderNodeSwitch::get_input_port_name(int p_port) const {
+	switch (p_port) {
+		case 0:
+			return "value";
+		case 1:
+			return "true";
+		case 2:
+			return "false";
+		default:
+			return "";
+	}
+}
+
+int VisualShaderNodeSwitch::get_output_port_count() const {
+	return 1;
+}
+
+VisualShaderNodeSwitch::PortType VisualShaderNodeSwitch::get_output_port_type(int p_port) const {
+	return PORT_TYPE_VECTOR;
+}
+
+String VisualShaderNodeSwitch::get_output_port_name(int p_port) const {
+	return "result";
+}
+
+String VisualShaderNodeSwitch::generate_code(Shader::Mode p_mode, VisualShader::Type p_type, int p_id, const String *p_input_vars, const String *p_output_vars, bool p_for_preview) const {
+
+	String code;
+	code += "\tif(" + p_input_vars[0] + ")\n";
+	code += "\t{\n";
+	code += "\t\t" + p_output_vars[0] + "=" + p_input_vars[1] + ";\n";
+	code += "\t}\n";
+	code += "\telse\n";
+	code += "\t{\n";
+	code += "\t\t" + p_output_vars[0] + "=" + p_input_vars[2] + ";\n";
+	code += "\t}\n";
+	return code;
+}
+
+VisualShaderNodeSwitch::VisualShaderNodeSwitch() {
+	set_input_port_default_value(0, false);
+	set_input_port_default_value(1, Vector3(0.0, 0.0, 0.0));
+	set_input_port_default_value(2, Vector3(0.0, 0.0, 0.0));
+}
+
+////////////// Fresnel
+
+String VisualShaderNodeFresnel::get_caption() const {
+	return "Fresnel";
+}
+
+int VisualShaderNodeFresnel::get_input_port_count() const {
+	return 4;
+}
+
+VisualShaderNodeFresnel::PortType VisualShaderNodeFresnel::get_input_port_type(int p_port) const {
+	switch (p_port) {
+		case 0:
+			return PORT_TYPE_VECTOR;
+		case 1:
+			return PORT_TYPE_VECTOR;
+		case 2:
+			return PORT_TYPE_BOOLEAN;
+		case 3:
+			return PORT_TYPE_SCALAR;
+		default:
+			return PORT_TYPE_VECTOR;
+	}
+}
+
+String VisualShaderNodeFresnel::get_input_port_name(int p_port) const {
+	switch (p_port) {
+		case 0:
+			return "normal";
+		case 1:
+			return "view";
+		case 2:
+			return "invert";
+		case 3:
+			return "power";
+		default:
+			return "";
+	}
+}
+
+int VisualShaderNodeFresnel::get_output_port_count() const {
+	return 1;
+}
+
+VisualShaderNodeFresnel::PortType VisualShaderNodeFresnel::get_output_port_type(int p_port) const {
+	return PORT_TYPE_SCALAR;
+}
+
+String VisualShaderNodeFresnel::get_output_port_name(int p_port) const {
+	return "result";
+}
+
+String VisualShaderNodeFresnel::generate_code(Shader::Mode p_mode, VisualShader::Type p_type, int p_id, const String *p_input_vars, const String *p_output_vars, bool p_for_preview) const {
+	return "\t" + p_output_vars[0] + " = " + p_input_vars[2] + " ? (pow(clamp(dot(" + p_input_vars[0] + ", " + p_input_vars[1] + "), 0.0, 1.0), " + p_input_vars[3] + ")) : (pow(1.0 - clamp(dot(" + p_input_vars[0] + ", " + p_input_vars[1] + "), 0.0, 1.0), " + p_input_vars[3] + "));";
+}
+
+VisualShaderNodeFresnel::VisualShaderNodeFresnel() {
+	set_input_port_default_value(0, Vector3(0.0, 0.0, 0.0));
+	set_input_port_default_value(1, Vector3(0.0, 0.0, 0.0));
+	set_input_port_default_value(2, false);
+	set_input_port_default_value(3, 1.0);
 }

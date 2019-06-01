@@ -9,8 +9,6 @@
 	</description>
 	<tutorials>
 	</tutorials>
-	<demos>
-	</demos>
 	<methods>
 		<method name="align">
 			<return type="void">
@@ -37,7 +35,7 @@
 			<return type="Vector2">
 			</return>
 			<description>
-				Return the camera position.
+				Returns the camera position.
 			</description>
 		</method>
 		<method name="get_camera_screen_center" qualifiers="const">

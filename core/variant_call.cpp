@@ -36,6 +36,7 @@
 #include "core/object.h"
 #include "core/os/os.h"
 #include "core/script_language.h"
+#include "thirdparty/misc/sha256.h"
 
 typedef void (*VariantFunc)(Variant &r_ret, Variant &p_self, const Variant **p_args);
 typedef void (*VariantConstructFunc)(Variant &r_ret, const Variant **p_args);
@@ -264,6 +265,7 @@ struct _VariantCall {
 	VCALL_LOCALMEM1R(String, right);
 	VCALL_LOCALMEM0R(String, dedent);
 	VCALL_LOCALMEM2R(String, strip_edges);
+	VCALL_LOCALMEM0R(String, strip_escapes);
 	VCALL_LOCALMEM1R(String, lstrip);
 	VCALL_LOCALMEM1R(String, rstrip);
 	VCALL_LOCALMEM0R(String, get_extension);
@@ -585,6 +587,19 @@ struct _VariantCall {
 		decompressed.resize(result);
 
 		r_ret = decompressed;
+	}
+
+	static void _call_PoolByteArray_sha256_string(Variant &r_ret, Variant &p_self, const Variant **p_args) {
+		PoolByteArray *ba = reinterpret_cast<PoolByteArray *>(p_self._data._mem);
+		PoolByteArray::Read r = ba->read();
+		String s;
+		unsigned char hash[32];
+		sha256_context sha256;
+		sha256_init(&sha256);
+		sha256_hash(&sha256, (unsigned char *)r.ptr(), ba->size());
+		sha256_done(&sha256, hash);
+		s = String::hex_encode_buffer(hash, 32);
+		r_ret = s;
 	}
 
 	VCALL_LOCALMEM0R(PoolByteArray, size);
@@ -1512,6 +1527,7 @@ void register_variant_methods() {
 	ADDFUNC1R(STRING, STRING, String, left, INT, "position", varray());
 	ADDFUNC1R(STRING, STRING, String, right, INT, "position", varray());
 	ADDFUNC2R(STRING, STRING, String, strip_edges, BOOL, "left", BOOL, "right", varray(true, true));
+	ADDFUNC0R(STRING, STRING, String, strip_escapes, varray());
 	ADDFUNC1R(STRING, STRING, String, lstrip, STRING, "chars", varray());
 	ADDFUNC1R(STRING, STRING, String, rstrip, STRING, "chars", varray());
 	ADDFUNC0R(STRING, STRING, String, get_extension, varray());
@@ -1733,6 +1749,7 @@ void register_variant_methods() {
 
 	ADDFUNC0R(POOL_BYTE_ARRAY, STRING, PoolByteArray, get_string_from_ascii, varray());
 	ADDFUNC0R(POOL_BYTE_ARRAY, STRING, PoolByteArray, get_string_from_utf8, varray());
+	ADDFUNC0R(POOL_BYTE_ARRAY, STRING, PoolByteArray, sha256_string, varray());
 	ADDFUNC1R(POOL_BYTE_ARRAY, POOL_BYTE_ARRAY, PoolByteArray, compress, INT, "compression_mode", varray(0));
 	ADDFUNC2R(POOL_BYTE_ARRAY, POOL_BYTE_ARRAY, PoolByteArray, decompress, INT, "buffer_size", INT, "compression_mode", varray(0));
 

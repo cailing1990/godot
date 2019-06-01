@@ -35,6 +35,76 @@
 #include "editor/editor_settings.h"
 #include "editor/script_editor_debugger.h"
 
+void ConnectionInfoDialog::ok_pressed() {
+}
+
+void ConnectionInfoDialog::popup_connections(String p_method, Vector<Node *> p_nodes) {
+	method->set_text(p_method);
+
+	tree->clear();
+	TreeItem *root = tree->create_item();
+
+	for (int i = 0; i < p_nodes.size(); i++) {
+		List<Connection> all_connections;
+		p_nodes[i]->get_signals_connected_to_this(&all_connections);
+
+		for (List<Connection>::Element *E = all_connections.front(); E; E = E->next()) {
+			Connection connection = E->get();
+
+			if (connection.method != p_method) {
+				continue;
+			}
+
+			TreeItem *node_item = tree->create_item(root);
+
+			node_item->set_text(0, Object::cast_to<Node>(connection.source)->get_name());
+			node_item->set_icon(0, EditorNode::get_singleton()->get_object_icon(connection.source, "Node"));
+			node_item->set_selectable(0, false);
+			node_item->set_editable(0, false);
+
+			node_item->set_text(1, connection.signal);
+			node_item->set_icon(1, get_parent_control()->get_icon("Slot", "EditorIcons"));
+			node_item->set_selectable(1, false);
+			node_item->set_editable(1, false);
+
+			node_item->set_text(2, Object::cast_to<Node>(connection.target)->get_name());
+			node_item->set_icon(2, EditorNode::get_singleton()->get_object_icon(connection.target, "Node"));
+			node_item->set_selectable(2, false);
+			node_item->set_editable(2, false);
+		}
+	}
+
+	popup_centered(Size2(400, 300) * EDSCALE);
+}
+
+ConnectionInfoDialog::ConnectionInfoDialog() {
+	set_title(TTR("Connections to method:"));
+
+	VBoxContainer *vbc = memnew(VBoxContainer);
+	vbc->set_anchor_and_margin(MARGIN_LEFT, ANCHOR_BEGIN, 8 * EDSCALE);
+	vbc->set_anchor_and_margin(MARGIN_TOP, ANCHOR_BEGIN, 8 * EDSCALE);
+	vbc->set_anchor_and_margin(MARGIN_RIGHT, ANCHOR_END, -8 * EDSCALE);
+	vbc->set_anchor_and_margin(MARGIN_BOTTOM, ANCHOR_END, -8 * EDSCALE);
+	add_child(vbc);
+
+	method = memnew(Label);
+	method->set_align(Label::ALIGN_CENTER);
+	vbc->add_child(method);
+
+	tree = memnew(Tree);
+	tree->set_columns(3);
+	tree->set_hide_root(true);
+	tree->set_column_titles_visible(true);
+	tree->set_column_title(0, TTR("Source"));
+	tree->set_column_title(1, TTR("Signal"));
+	tree->set_column_title(2, TTR("Target"));
+	vbc->add_child(tree);
+	tree->set_v_size_flags(SIZE_EXPAND_FILL);
+	tree->set_allow_rmb_select(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Vector<String> ScriptTextEditor::get_functions() {
 
 	String errortxt;
@@ -81,6 +151,8 @@ void ScriptTextEditor::set_edited_resource(const RES &p_res) {
 
 	emit_signal("name_changed");
 	code_editor->update_line_and_column();
+
+	_validate_script();
 }
 
 void ScriptTextEditor::_update_member_keywords() {
@@ -141,7 +213,9 @@ void ScriptTextEditor::_load_theme_settings() {
 	Color function_color = EDITOR_GET("text_editor/highlighting/function_color");
 	Color member_variable_color = EDITOR_GET("text_editor/highlighting/member_variable_color");
 	Color mark_color = EDITOR_GET("text_editor/highlighting/mark_color");
+	Color bookmark_color = EDITOR_GET("text_editor/highlighting/bookmark_color");
 	Color breakpoint_color = EDITOR_GET("text_editor/highlighting/breakpoint_color");
+	Color executing_line_color = EDITOR_GET("text_editor/highlighting/executing_line_color");
 	Color code_folding_color = EDITOR_GET("text_editor/highlighting/code_folding_color");
 	Color search_result_color = EDITOR_GET("text_editor/highlighting/search_result_color");
 	Color search_result_border_color = EDITOR_GET("text_editor/highlighting/search_result_border_color");
@@ -172,7 +246,9 @@ void ScriptTextEditor::_load_theme_settings() {
 	text_edit->add_color_override("number_color", number_color);
 	text_edit->add_color_override("function_color", function_color);
 	text_edit->add_color_override("member_variable_color", member_variable_color);
+	text_edit->add_color_override("bookmark_color", bookmark_color);
 	text_edit->add_color_override("breakpoint_color", breakpoint_color);
+	text_edit->add_color_override("executing_line_color", executing_line_color);
 	text_edit->add_color_override("mark_color", mark_color);
 	text_edit->add_color_override("code_folding_color", code_folding_color);
 	text_edit->add_color_override("search_result_color", search_result_color);
@@ -286,7 +362,7 @@ void ScriptTextEditor::_warning_clicked(Variant p_line) {
 		code_editor->get_text_edit()->cursor_set_line(p_line.operator int64_t());
 	} else if (p_line.get_type() == Variant::DICTIONARY) {
 		Dictionary meta = p_line.operator Dictionary();
-		code_editor->get_text_edit()->insert_at("#warning-ignore:" + meta["code"].operator String(), meta["line"].operator int64_t() - 1);
+		code_editor->get_text_edit()->insert_at("# warning-ignore:" + meta["code"].operator String(), meta["line"].operator int64_t() - 1);
 		_validate_script();
 	}
 }
@@ -302,7 +378,6 @@ void ScriptTextEditor::reload_text() {
 	int v = te->get_v_scroll();
 
 	te->set_text(script->get_source_code());
-	te->clear_undo_history();
 	te->cursor_set_line(row);
 	te->cursor_set_column(column);
 	te->set_h_scroll(h);
@@ -318,7 +393,6 @@ void ScriptTextEditor::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_READY:
 			_load_theme_settings();
-			_change_syntax_highlighter(EditorSettings::get_singleton()->get_project_metadata("script_text_editor", "syntax_highlighter", 0));
 			break;
 	}
 }
@@ -363,6 +437,14 @@ Variant ScriptTextEditor::get_edit_state() {
 void ScriptTextEditor::set_edit_state(const Variant &p_state) {
 
 	code_editor->set_edit_state(p_state);
+
+	Dictionary state = p_state;
+	if (state.has("syntax_highlighter")) {
+		int idx = highlighter_menu->get_item_idx_from_text(state["syntax_highlighter"]);
+		if (idx >= 0) {
+			_change_syntax_highlighter(idx);
+		}
+	}
 }
 
 void ScriptTextEditor::_convert_case(CodeTextEditor::CaseStyle p_case) {
@@ -398,6 +480,14 @@ void ScriptTextEditor::goto_line(int p_line, bool p_with_error) {
 void ScriptTextEditor::goto_line_selection(int p_line, int p_begin, int p_end) {
 
 	code_editor->goto_line_selection(p_line, p_begin, p_end);
+}
+
+void ScriptTextEditor::set_executing_line(int p_line) {
+	code_editor->set_executing_line(p_line);
+}
+
+void ScriptTextEditor::clear_executing_line() {
+	code_editor->clear_executing_line();
 }
 
 void ScriptTextEditor::ensure_focus() {
@@ -461,9 +551,32 @@ void ScriptTextEditor::_validate_script() {
 			functions.push_back(E->get());
 		}
 	}
+	_update_connected_methods();
 
-	code_editor->set_warning_nb(warnings.size());
+	code_editor->set_warning_nb(missing_connections.size() + warnings.size());
 	warnings_panel->clear();
+
+	// add missing connections
+	Node *base = get_tree()->get_edited_scene_root();
+	if (base && missing_connections.size() > 0) {
+		warnings_panel->push_table(1);
+		for (List<Connection>::Element *E = missing_connections.front(); E; E = E->next()) {
+			Connection connection = E->get();
+
+			String base_path = base->get_name();
+			String source_path = base == connection.source ? base_path : base_path + "/" + String(base->get_path_to(Object::cast_to<Node>(connection.source)));
+			String target_path = base == connection.target ? base_path : base_path + "/" + String(base->get_path_to(Object::cast_to<Node>(connection.target)));
+
+			warnings_panel->push_cell();
+			warnings_panel->push_color(warnings_panel->get_color("warning_color", "Editor"));
+			warnings_panel->add_text(vformat(TTR("Missing connected method '%s' for signal '%s' from node '%s' to node '%s'"), connection.method, connection.signal, source_path, target_path));
+			warnings_panel->pop(); // Color
+			warnings_panel->pop(); // Cell
+		}
+		warnings_panel->pop(); // Table
+	}
+
+	// add script warnings
 	warnings_panel->push_table(3);
 	for (List<ScriptLanguage::Warning>::Element *E = warnings.front(); E; E = E->next()) {
 		ScriptLanguage::Warning w = E->get();
@@ -515,6 +628,27 @@ void ScriptTextEditor::_validate_script() {
 
 	emit_signal("name_changed");
 	emit_signal("edited_script_changed");
+}
+
+static Vector<Node *> _find_all_node_for_script(Node *p_base, Node *p_current, const Ref<Script> &p_script) {
+
+	Vector<Node *> nodes;
+
+	if (p_current->get_owner() != p_base && p_base != p_current) {
+		return nodes;
+	}
+
+	Ref<Script> c = p_current->get_script();
+	if (c == p_script) {
+		nodes.push_back(p_current);
+	}
+
+	for (int i = 0; i < p_current->get_child_count(); i++) {
+		Vector<Node *> found = _find_all_node_for_script(p_base, p_current->get_child(i), p_script);
+		nodes.append_array(found);
+	}
+
+	return nodes;
 }
 
 static Node *_find_node_for_script(Node *p_base, Node *p_current, const Ref<Script> &p_script) {
@@ -712,6 +846,47 @@ void ScriptTextEditor::_lookup_symbol(const String &p_symbol, int p_row, int p_c
 	}
 }
 
+void ScriptTextEditor::_update_connected_methods() {
+	TextEdit *text_edit = code_editor->get_text_edit();
+	text_edit->clear_info_icons();
+	missing_connections.clear();
+
+	Node *base = get_tree()->get_edited_scene_root();
+	if (!base) {
+		return;
+	}
+
+	Vector<Node *> nodes = _find_all_node_for_script(base, base, script);
+	for (int i = 0; i < nodes.size(); i++) {
+		List<Connection> connections;
+		nodes[i]->get_signals_connected_to_this(&connections);
+
+		for (List<Connection>::Element *E = connections.front(); E; E = E->next()) {
+			Connection connection = E->get();
+			if (!(connection.flags & CONNECT_PERSIST)) {
+				continue;
+			}
+
+			int line = script->get_language()->find_function(connection.method, text_edit->get_text());
+			if (line < 0) {
+				missing_connections.push_back(connection);
+				continue;
+			}
+			text_edit->set_line_info_icon(line - 1, get_parent_control()->get_icon("Slot", "EditorIcons"), connection.method);
+		}
+	}
+}
+
+void ScriptTextEditor::_lookup_connections(int p_row, String p_method) {
+	Node *base = get_tree()->get_edited_scene_root();
+	if (!base) {
+		return;
+	}
+
+	Vector<Node *> nodes = _find_all_node_for_script(base, base, script);
+	connection_info_dialog->popup_connections(p_method, nodes);
+}
+
 void ScriptTextEditor::_edit_option(int p_op) {
 
 	TextEdit *tx = code_editor->get_text_edit();
@@ -892,6 +1067,22 @@ void ScriptTextEditor::_edit_option(int p_op) {
 
 			goto_line_dialog->popup_find_line(tx);
 		} break;
+		case BOOKMARK_TOGGLE: {
+
+			code_editor->toggle_bookmark();
+		} break;
+		case BOOKMARK_GOTO_NEXT: {
+
+			code_editor->goto_next_bookmark();
+		} break;
+		case BOOKMARK_GOTO_PREV: {
+
+			code_editor->goto_prev_bookmark();
+		} break;
+		case BOOKMARK_REMOVE_ALL: {
+
+			code_editor->remove_all_bookmarks();
+		} break;
 		case DEBUG_TOGGLE_BREAKPOINT: {
 
 			int line = tx->cursor_get_line();
@@ -1024,7 +1215,6 @@ void ScriptTextEditor::_change_syntax_highlighter(int p_idx) {
 	}
 	// highlighter_menu->set_item_checked(p_idx, true);
 	set_syntax_highlighter(highlighters[highlighter_menu->get_item_text(p_idx)]);
-	EditorSettings::get_singleton()->set_project_metadata("script_text_editor", "syntax_highlighter", p_idx);
 }
 
 void ScriptTextEditor::_bind_methods() {
@@ -1032,6 +1222,8 @@ void ScriptTextEditor::_bind_methods() {
 	ClassDB::bind_method("_validate_script", &ScriptTextEditor::_validate_script);
 	ClassDB::bind_method("_load_theme_settings", &ScriptTextEditor::_load_theme_settings);
 	ClassDB::bind_method("_breakpoint_toggled", &ScriptTextEditor::_breakpoint_toggled);
+	ClassDB::bind_method("_lookup_connections", &ScriptTextEditor::_lookup_connections);
+	ClassDB::bind_method("_update_connected_methods", &ScriptTextEditor::_update_connected_methods);
 	ClassDB::bind_method("_change_syntax_highlighter", &ScriptTextEditor::_change_syntax_highlighter);
 	ClassDB::bind_method("_edit_option", &ScriptTextEditor::_edit_option);
 	ClassDB::bind_method("_goto_line", &ScriptTextEditor::_goto_line);
@@ -1091,7 +1283,8 @@ bool ScriptTextEditor::can_drop_data_fw(const Point2 &p_point, const Variant &p_
 	Dictionary d = p_data;
 	if (d.has("type") && (String(d["type"]) == "resource" ||
 								 String(d["type"]) == "files" ||
-								 String(d["type"]) == "nodes")) {
+								 String(d["type"]) == "nodes" ||
+								 String(d["type"]) == "files_and_dirs")) {
 
 		return true;
 	}
@@ -1153,7 +1346,7 @@ void ScriptTextEditor::drop_data_fw(const Point2 &p_point, const Variant &p_data
 		te->insert_text_at_cursor(res->get_path());
 	}
 
-	if (d.has("type") && String(d["type"]) == "files") {
+	if (d.has("type") && (String(d["type"]) == "files" || String(d["type"]) == "files_and_dirs")) {
 
 		Array files = d["files"];
 
@@ -1324,6 +1517,7 @@ void ScriptTextEditor::_make_context_menu(bool p_selection, bool p_color, bool p
 	context_menu->add_shortcut(ED_GET_SHORTCUT("script_text_editor/indent_left"), EDIT_INDENT_LEFT);
 	context_menu->add_shortcut(ED_GET_SHORTCUT("script_text_editor/indent_right"), EDIT_INDENT_RIGHT);
 	context_menu->add_shortcut(ED_GET_SHORTCUT("script_text_editor/toggle_comment"), EDIT_TOGGLE_COMMENT);
+	context_menu->add_shortcut(ED_GET_SHORTCUT("script_text_editor/toggle_bookmark"), BOOKMARK_TOGGLE);
 
 	if (p_selection) {
 		context_menu->add_separator();
@@ -1364,6 +1558,7 @@ ScriptTextEditor::ScriptTextEditor() {
 	code_editor->set_code_complete_func(_code_complete_scripts, this);
 	code_editor->get_text_edit()->connect("breakpoint_toggled", this, "_breakpoint_toggled");
 	code_editor->get_text_edit()->connect("symbol_lookup", this, "_lookup_symbol");
+	code_editor->get_text_edit()->connect("info_clicked", this, "_lookup_connections");
 	code_editor->set_v_size_flags(SIZE_EXPAND_FILL);
 
 	warnings_panel = memnew(RichTextLabel);
@@ -1475,6 +1670,16 @@ ScriptTextEditor::ScriptTextEditor() {
 
 	search_menu->get_popup()->connect("id_pressed", this, "_edit_option");
 
+	PopupMenu *bookmarks = memnew(PopupMenu);
+	bookmarks->set_name("bookmarks");
+	edit_menu->get_popup()->add_child(bookmarks);
+	edit_menu->get_popup()->add_submenu_item(TTR("Bookmarks"), "bookmarks");
+	bookmarks->add_shortcut(ED_GET_SHORTCUT("script_text_editor/toggle_bookmark"), BOOKMARK_TOGGLE);
+	bookmarks->add_shortcut(ED_GET_SHORTCUT("script_text_editor/remove_all_bookmarks"), BOOKMARK_REMOVE_ALL);
+	bookmarks->add_shortcut(ED_GET_SHORTCUT("script_text_editor/goto_next_bookmark"), BOOKMARK_GOTO_NEXT);
+	bookmarks->add_shortcut(ED_GET_SHORTCUT("script_text_editor/goto_previous_bookmark"), BOOKMARK_GOTO_PREV);
+	bookmarks->connect("id_pressed", this, "_edit_option");
+
 	edit_hb->add_child(edit_menu);
 
 	quick_open = memnew(ScriptEditorQuickOpen);
@@ -1483,6 +1688,9 @@ ScriptTextEditor::ScriptTextEditor() {
 
 	goto_line_dialog = memnew(GotoLineDialog);
 	add_child(goto_line_dialog);
+
+	connection_info_dialog = memnew(ConnectionInfoDialog);
+	add_child(connection_info_dialog);
 
 	code_editor->get_text_edit()->set_drag_forwarding(this);
 }
@@ -1513,6 +1721,10 @@ void ScriptTextEditor::register_editor() {
 	ED_SHORTCUT("script_text_editor/indent_left", TTR("Indent Left"), 0);
 	ED_SHORTCUT("script_text_editor/indent_right", TTR("Indent Right"), 0);
 	ED_SHORTCUT("script_text_editor/toggle_comment", TTR("Toggle Comment"), KEY_MASK_CMD | KEY_K);
+	ED_SHORTCUT("script_text_editor/toggle_bookmark", TTR("Toggle Bookmark"), KEY_MASK_CMD | KEY_MASK_ALT | KEY_B);
+	ED_SHORTCUT("script_text_editor/goto_next_bookmark", TTR("Go to Next Bookmark"), KEY_MASK_CMD | KEY_B);
+	ED_SHORTCUT("script_text_editor/goto_previous_bookmark", TTR("Go to Previous Bookmark"), KEY_MASK_CMD | KEY_MASK_SHIFT | KEY_B);
+	ED_SHORTCUT("script_text_editor/remove_all_bookmarks", TTR("Remove All Bookmarks"), 0);
 	ED_SHORTCUT("script_text_editor/toggle_fold_line", TTR("Fold/Unfold Line"), KEY_MASK_ALT | KEY_F);
 	ED_SHORTCUT("script_text_editor/fold_all_lines", TTR("Fold All Lines"), 0);
 	ED_SHORTCUT("script_text_editor/unfold_all_lines", TTR("Unfold All Lines"), 0);
@@ -1520,7 +1732,7 @@ void ScriptTextEditor::register_editor() {
 	ED_SHORTCUT("script_text_editor/clone_down", TTR("Clone Down"), KEY_MASK_SHIFT | KEY_MASK_CMD | KEY_C);
 	ED_SHORTCUT("script_text_editor/complete_symbol", TTR("Complete Symbol"), KEY_MASK_CTRL | KEY_SPACE);
 #else
-	ED_SHORTCUT("script_text_editor/clone_down", TTR("Clone Down"), KEY_MASK_CMD | KEY_B);
+	ED_SHORTCUT("script_text_editor/clone_down", TTR("Clone Down"), KEY_MASK_CMD | KEY_D);
 	ED_SHORTCUT("script_text_editor/complete_symbol", TTR("Complete Symbol"), KEY_MASK_CMD | KEY_SPACE);
 #endif
 	ED_SHORTCUT("script_text_editor/trim_trailing_whitespace", TTR("Trim Trailing Whitespace"), KEY_MASK_CMD | KEY_MASK_ALT | KEY_T);
@@ -1560,7 +1772,7 @@ void ScriptTextEditor::register_editor() {
 #ifdef OSX_ENABLED
 	ED_SHORTCUT("script_text_editor/contextual_help", TTR("Contextual Help"), KEY_MASK_ALT | KEY_MASK_SHIFT | KEY_SPACE);
 #else
-	ED_SHORTCUT("script_text_editor/contextual_help", TTR("Contextual Help"), KEY_MASK_SHIFT | KEY_F1);
+	ED_SHORTCUT("script_text_editor/contextual_help", TTR("Contextual Help"), KEY_MASK_ALT | KEY_F1);
 #endif
 
 	ScriptEditor::register_create_script_editor_function(create_editor);

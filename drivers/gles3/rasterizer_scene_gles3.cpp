@@ -1061,12 +1061,11 @@ void RasterizerSceneGLES3::gi_probe_instance_set_light_data(RID p_probe, RID p_b
 	if (p_data.is_valid()) {
 		RasterizerStorageGLES3::GIProbeData *gipd = storage->gi_probe_data_owner.getornull(p_data);
 		ERR_FAIL_COND(!gipd);
-		if (gipd) {
-			gipi->tex_cache = gipd->tex_id;
-			gipi->cell_size_cache.x = 1.0 / gipd->width;
-			gipi->cell_size_cache.y = 1.0 / gipd->height;
-			gipi->cell_size_cache.z = 1.0 / gipd->depth;
-		}
+
+		gipi->tex_cache = gipd->tex_id;
+		gipi->cell_size_cache.x = 1.0 / gipd->width;
+		gipi->cell_size_cache.y = 1.0 / gipd->height;
+		gipi->cell_size_cache.z = 1.0 / gipd->depth;
 	}
 }
 void RasterizerSceneGLES3::gi_probe_instance_set_transform_to_data(RID p_probe, const Transform &p_xform) {
@@ -1278,7 +1277,8 @@ bool RasterizerSceneGLES3::_setup_material(RasterizerStorageGLES3::Material *p_m
 
 				} break;
 
-				default: {}
+				default: {
+				}
 			}
 		}
 
@@ -1525,7 +1525,8 @@ void RasterizerSceneGLES3::_setup_geometry(RenderList::Element *e, const Transfo
 			}
 
 		} break;
-		default: {}
+		default: {
+		}
 	}
 }
 
@@ -1847,7 +1848,8 @@ void RasterizerSceneGLES3::_render_geometry(RenderList::Element *e) {
 			}
 
 		} break;
-		default: {}
+		default: {
+		}
 	}
 }
 
@@ -2372,7 +2374,7 @@ void RasterizerSceneGLES3::_add_geometry_with_material(RasterizerStorageGLES3::G
 		has_alpha = false;
 	}
 
-	RenderList::Element *e = has_alpha ? render_list.add_alpha_element() : render_list.add_element();
+	RenderList::Element *e = (has_alpha || p_material->shader->spatial.no_depth_test) ? render_list.add_alpha_element() : render_list.add_element();
 
 	if (!e)
 		return;
@@ -3248,7 +3250,8 @@ void RasterizerSceneGLES3::_fill_render_list(InstanceBase **p_cull_result, int p
 				}
 
 			} break;
-			default: {}
+			default: {
+			}
 		}
 	}
 }
@@ -4423,7 +4426,8 @@ void RasterizerSceneGLES3::render_scene(const Transform &p_cam_transform, const 
 				glEnable(GL_DEPTH_TEST);
 				glEnable(GL_CULL_FACE);
 				break;
-			default: {}
+			default: {
+			}
 		}
 	}
 

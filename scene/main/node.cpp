@@ -39,7 +39,13 @@
 #include "scene/scene_string_names.h"
 #include "viewport.h"
 
+#ifdef TOOLS_ENABLED
+#include "editor/editor_settings.h"
+#endif
+
 VARIANT_ENUM_CAST(Node::PauseMode);
+
+int Node::orphan_node_count = 0;
 
 void Node::_notification(int p_notification) {
 
@@ -84,11 +90,14 @@ void Node::_notification(int p_notification) {
 				add_to_group("_vp_unhandled_key_input" + itos(get_viewport()->get_instance_id()));
 
 			get_tree()->node_count++;
+			orphan_node_count--;
 
 		} break;
 		case NOTIFICATION_EXIT_TREE: {
 
 			get_tree()->node_count--;
+			orphan_node_count++;
+
 			if (data.input)
 				remove_from_group("_vp_input" + itos(get_viewport()->get_instance_id()));
 			if (data.unhandled_input)
@@ -940,6 +949,7 @@ void Node::set_name(const String &p_name) {
 	if (is_inside_tree()) {
 
 		emit_signal("renamed");
+		get_tree()->node_renamed(this);
 		get_tree()->tree_changed();
 	}
 }
@@ -2067,7 +2077,9 @@ Node *Node::_duplicate(int p_flags, Map<const Node *, Node *> *r_duplimap) const
 		}
 	}
 
-	node->set_name(get_name());
+	if (get_name() != String()) {
+		node->set_name(get_name());
+	}
 
 #ifdef TOOLS_ENABLED
 	if ((p_flags & DUPLICATE_FROM_EDITOR) && r_duplimap)
@@ -2421,7 +2433,7 @@ void Node::_replace_connections_target(Node *p_new_target) {
 
 		if (c.flags & CONNECT_PERSIST) {
 			c.source->disconnect(c.signal, this, c.method);
-			bool valid = p_new_target->has_method(c.method) || p_new_target->get_script().is_null() || Ref<Script>(p_new_target->get_script())->has_method(c.method);
+			bool valid = p_new_target->has_method(c.method) || Ref<Script>(p_new_target->get_script()).is_null() || Ref<Script>(p_new_target->get_script())->has_method(c.method);
 			ERR_EXPLAIN("Attempt to connect signal \'" + c.source->get_class() + "." + c.signal + "\' to nonexistent method \'" + c.target->get_class() + "." + c.method + "\'");
 			ERR_CONTINUE(!valid);
 			c.source->connect(c.signal, p_new_target, c.method, c.binds, c.flags);
@@ -2632,10 +2644,16 @@ NodePath Node::get_import_path() const {
 
 static void _add_nodes_to_options(const Node *p_base, const Node *p_node, List<String> *r_options) {
 
+#ifdef TOOLS_ENABLED
+	const String quote_style = EDITOR_DEF("text_editor/completion/use_single_quotes", 0) ? "'" : "\"";
+#else
+	const String quote_style = "\"";
+#endif
+
 	if (p_node != p_base && !p_node->get_owner())
 		return;
 	String n = p_base->get_path_to(p_node);
-	r_options->push_back("\"" + n + "\"");
+	r_options->push_back(quote_style + n + quote_style);
 	for (int i = 0; i < p_node->get_child_count(); i++) {
 		_add_nodes_to_options(p_base, p_node->get_child(i), r_options);
 	}
@@ -2759,6 +2777,7 @@ void Node::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("can_process"), &Node::can_process);
 	ClassDB::bind_method(D_METHOD("print_stray_nodes"), &Node::_print_stray_nodes);
 	ClassDB::bind_method(D_METHOD("get_position_in_parent"), &Node::get_position_in_parent);
+
 	ClassDB::bind_method(D_METHOD("set_display_folded", "fold"), &Node::set_display_folded);
 	ClassDB::bind_method(D_METHOD("is_displayed_folded"), &Node::is_displayed_folded);
 
@@ -2871,7 +2890,12 @@ void Node::_bind_methods() {
 	//ADD_PROPERTY( PropertyInfo( Variant::BOOL, "process/unhandled_input" ), "set_process_unhandled_input","is_processing_unhandled_input" ) ;
 	ADD_GROUP("Pause", "pause_");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "pause_mode", PROPERTY_HINT_ENUM, "Inherit,Stop,Process"), "set_pause_mode", "get_pause_mode");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "editor/display_folded", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NOEDITOR | PROPERTY_USAGE_INTERNAL), "set_display_folded", "is_displayed_folded");
+
+#ifdef ENABLE_DEPRECATED
+	//no longer exists, but remains for compatibility (keep previous scenes folded
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "editor/display_folded", PROPERTY_HINT_NONE, "", 0), "set_display_folded", "is_displayed_folded");
+#endif
+
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "name", PROPERTY_HINT_NONE, "", 0), "set_name", "get_name");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "filename", PROPERTY_HINT_NONE, "", 0), "set_filename", "get_filename");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "owner", PROPERTY_HINT_RESOURCE_TYPE, "Node", 0), "set_owner", "get_owner");
@@ -2932,6 +2956,8 @@ Node::Node() {
 	data.use_placeholder = false;
 	data.display_folded = false;
 	data.ready_first = true;
+
+	orphan_node_count++;
 }
 
 Node::~Node() {
@@ -2942,6 +2968,8 @@ Node::~Node() {
 
 	ERR_FAIL_COND(data.parent);
 	ERR_FAIL_COND(data.children.size());
+
+	orphan_node_count--;
 }
 
 ////////////////////////////////
